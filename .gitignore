@@ -1,0 +1,14 @@
+# Ignore config files that may contain tokens
+configs/*.json
+!configs/default.json
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+.venv/
+venv/
+
+# OS
+.DS_Store
+Thumbs.db

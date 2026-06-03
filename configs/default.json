@@ -1,0 +1,41 @@
+{
+    "bot": {
+        "activity_text": "AbilityV2 | Baahwei",
+        "prefix": "!",
+        "status": "dnd",
+        "token": "YOUR_BOT_TOKEN_HERE"
+    },
+    "nuke": {
+        "channel_names": [
+            "fucked-by-baahwei",
+            "ability-on-top",
+            "reversal-tuff",
+            "owned"
+        ],
+        "channels_to_create": 250,
+        "role_names": [
+            "FUCKED-BY-BAAHWEI",
+            "ABILITY-V2",
+            "POTENTIAL SKID"
+        ],
+        "roles_to_create": 250,
+        "server_description": "ABILITY V2 |BAAH TUFF",
+        "server_icon_url": "https://cdn.discordapp.com/icons/1471322617800556810/65cd078387c25574b85791dc0bd17284.png?size=1024",
+        "server_name": "FUCKED BY BAAHWEI",
+        "spam_messages": [
+            "@everyone FUCKED BY BAAHWEI | ABILITY V2 ON TOP",
+            "@everyone REVERSAL TUFF | ABILITY V2 OWNS YOU",
+            "@everyone BAAHWEI IS GOATED | ABILITY V2"
+        ]
+    },
+    "spam": {
+        "messages_per_second": 50
+    },
+    "webhook_spammer": {
+        "delay_seconds": 0.05,
+        "enabled": false,
+        "message": "@everyone FUCKED BY BAAHWEI | ABILITY V2",
+        "username": "Ability",
+        "webhook_urls": []
+    }
+}
