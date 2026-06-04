@@ -148,17 +148,39 @@ def log(msg, kind="info"):
     print(f"{Fore.LIGHTBLACK_EX}[{_ts()}]{Fore.RESET} {c}{msg}{Fore.RESET}")
 
 
+DOMAIN_ART = [
+    "@@@@@@@@@@@@@",
+    "@@@@@@@%*+#%@@",
+    "@@@@@@@#+*%@@@",
+    "@@@@@@*=+%@@@@",
+    "@@@@@*#+*#@@@@",
+    "@@@%+#@#*#@@@@",
+    "@@%**@@%*%@@@@",
+    "@@#%@@#*#@@@@@",
+    "@%*@@@++%@@@@@",
+    "@#%@@#=#@@@@@@",
+    "#@@@@*#%@@@@@@",
+    "*@@@@+%@@@@@@@",
+    "#@@@@*%@@@@@@@",
+    "%@@@@*%@@@@@@@",
+    "#@@@@*%@@@@@@@",
+]
+
 def print_banner():
     clear_console()
     set_title()
     lines = BANNER_ASCII.split("\n")
-    total = len(lines)
-    for i, line in enumerate(lines):
+    total = max(len(lines), len(DOMAIN_ART))
+    for i in range(total):
         t = i / max(total - 1, 1)
         r = int(128 + t * 127)
         g = int(0 + t * 220)
         b = int(128 + t * 127)
-        print(f"\x1b[38;2;{r};{g};{b}m{line}\x1b[0m")
+        main_line = lines[i] if i < len(lines) else ""
+        art_line = DOMAIN_ART[i] if i < len(DOMAIN_ART) else ""
+        spacing = 65
+        combined = f"\x1b[38;2;{r};{g};{b}m{main_line}{' ' * (spacing - len(main_line))}{Fore.MAGENTA}{art_line}\x1b[0m"
+        print(combined)
     print("")
     print(f"{Fore.LIGHTWHITE_EX}          MADE BY: Baahwei{Fore.RESET}")
     print("")
