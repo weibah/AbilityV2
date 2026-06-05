@@ -622,6 +622,7 @@ def show_idiot_commands():
     print(f"  {Fore.LIGHTCYAN_EX}safemode{Fore.RESET}                 - Toggle safe mode (anti-ratelimit)")
     print(f"  {Fore.LIGHTCYAN_EX}godmode{Fore.RESET}                  - Toggle GOD MODE (max speed, batch 50)")
     print(f"  {Fore.LIGHTCYAN_EX}webhooknuke / wn{Fore.RESET}        - Nuke a webhook (asks for URL)")
+    print(f"  {Fore.LIGHTCYAN_EX}dmspam{Fore.RESET}                   - DM spam users (type custom messages)")
     print(f"  {Fore.LIGHTCYAN_EX}stopnuke{Fore.RESET}                - Cancel a running background nuke")
     print(f"  {Fore.LIGHTCYAN_EX}birdseye / be{Fore.RESET}          - Switch to BIRDS EYE VIEW (live monitor)")
     print(f"  {Fore.LIGHTCYAN_EX}shutdown{Fore.RESET}               - Shut down the bot")
@@ -744,6 +745,9 @@ async def idiot_mode_loop():
 
         elif cmd_name == "webhooknuke" or cmd_name == "wn":
             await webhook_nuke()
+
+        elif cmd_name == "dmspam":
+            await dm_spam()
 
         elif cmd_name == "birdseye" or cmd_name == "be":
             await switch_to_birdseye(server_id)
@@ -1089,6 +1093,88 @@ async def webhook_nuke():
         await asyncio.sleep(0.01)
 
     log(f"Webhook nuke done: {sent} sent, {errors} errors", "ok")
+
+
+async def dm_spam():
+    """DM spam users - pick a user, type custom messages one by one."""
+    guild = None
+    if bot.guilds:
+        guild = bot.guilds[0]
+    if guild is None:
+        log("Bot is not in any server.", "err")
+        return
+
+    def read_user():
+        return input(f"{Fore.MAGENTA}  User ID or name > {Fore.RESET}").strip()
+
+    user_input = await asyncio.get_event_loop().run_in_executor(None, read_user)
+    member = None
+    if user_input.isdigit() and len(user_input) >= 17:
+        member = guild.get_member(int(user_input))
+    if member is None:
+        clean = user_input.lstrip("@")
+        for m in guild.members:
+            if m.name.lower() == clean.lower() or str(m).lower() == clean.lower():
+                member = m
+                break
+
+    if member is None:
+        log("User not found.", "err")
+        return
+
+    log(f"DM SPAM target: {member.name}", "warn")
+    log("Type messages one by one. 'send' to flush, 'done' to finish, 'qty N' to repeat.", "info")
+
+    messages = []
+    repeat = 1
+    while True:
+        def read_msg():
+            return input(f"{Fore.MAGENTA}  msg > {Fore.RESET}").strip()
+        msg = await asyncio.get_event_loop().run_in_executor(None, read_msg)
+        if msg.lower() == "done":
+            break
+        if msg.lower() == "send":
+            if not messages:
+                log("No messages queued.", "info")
+                continue
+            break
+        if msg.lower().startswith("qty "):
+            try:
+                repeat = int(msg.split()[1])
+                log(f"Will send each message {repeat} times.", "cyan")
+            except ValueError:
+                log("Invalid number. Example: qty 5", "err")
+            continue
+        if msg == "":
+            continue
+        messages.append(msg)
+
+    if not messages:
+        log("No messages to send.", "info")
+        return
+
+    log(f"Sending {len(messages)} messages x{repeat}...", "cyan")
+    sent = 0
+    errors = 0
+    try:
+        for _ in range(repeat):
+            for msg in messages:
+                try:
+                    await member.send(msg)
+                    sent += 1
+                    log(f"  DM sent: {msg[:50]}", "ok")
+                except discord.Forbidden:
+                    log(f"  Cannot DM {member.name} (DMs closed)", "err")
+                    errors += 1
+                    break
+                except Exception as e:
+                    log(f"  Error: {e}", "err")
+                    errors += 1
+                await asyncio.sleep(0.5)
+    except Exception as e:
+        log(f"DM spam error: {e}", "err")
+
+    log(f"DM spam done: {sent} sent, {errors} errors", "ok")
 
 
 async def execute_on_guild(cmd_name, server_id=None):
