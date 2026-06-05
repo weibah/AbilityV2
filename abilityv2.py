@@ -1110,7 +1110,10 @@ async def dm_spam():
     user_input = await asyncio.get_event_loop().run_in_executor(None, read_user)
     member = None
     if user_input.isdigit() and len(user_input) >= 17:
-        member = guild.get_member(int(user_input))
+        try:
+            member = await guild.fetch_member(int(user_input))
+        except Exception:
+            member = None
     if member is None:
         clean = user_input.lstrip("@")
         for m in guild.members:
