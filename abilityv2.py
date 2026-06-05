@@ -1097,35 +1097,71 @@ async def webhook_nuke():
 
 async def dm_spam():
     """DM spam users - pick a user, type custom messages one by one."""
-    guild = None
-    if bot.guilds:
-        guild = bot.guilds[0]
-    if guild is None:
-        log("Bot is not in any server.", "err")
-        return
-
     def read_user():
         return input(f"{Fore.MAGENTA}  User ID or name > {Fore.RESET}").strip()
 
     user_input = await asyncio.get_event_loop().run_in_executor(None, read_user)
-    member = None
-    if user_input.isdigit() and len(user_input) >= 17:
-        try:
-            member = await guild.fetch_member(int(user_input))
-        except Exception:
-            member = None
-    if member is None:
-        clean = user_input.lstrip("@")
-        for m in guild.members:
-            if m.name.lower() == clean.lower() or str(m).lower() == clean.lower():
-                member = m
-                break
-
-    if member is None:
-        log("User not found.", "err")
+    if not user_input:
+        log("No input.", "err")
         return
 
-    log(f"DM SPAM target: {member.name}", "warn")
+    target = None
+
+    # Try by user ID (works globally via Discord API)
+    if user_input.isdigit() and len(user_input) >= 17:
+        uid = int(user_input)
+        try:
+            target = await bot.fetch_user(uid)
+            log(f"Found by ID: {target.name}#{target.discriminator}", "ok")
+        except Exception as e:
+            log(f"fetch_user failed: {e}", "err")
+
+    # Try by name across ALL guilds
+    if target is None:
+        clean = user_input.lstrip("@").lower()
+        for g in bot.guilds:
+            for m in g.members:
+                if m.name.lower() == clean or str(m).lower() == clean or m.display_name.lower() == clean:
+                    target = m
+                    log(f"Found by name: {target}", "ok")
+                    break
+            if target:
+                break
+
+    # Try by name + discrim
+    if target is None and "#" in user_input:
+        parts = user_input.rsplit("#", 1)
+        if len(parts) == 2:
+            name_part, disc = parts[0].lower(), parts[1]
+            for g in bot.guilds:
+                for m in g.members:
+                    if m.name.lower() == name_part and m.discriminator == disc:
+                        target = m
+                        break
+                if target:
+                    break
+
+    # Try partial match
+    if target is None:
+        clean = user_input.lstrip("@").lower()
+        for g in bot.guilds:
+            for m in g.members:
+                if clean in m.name.lower() or clean in str(m).lower():
+                    target = m
+                    log(f"Found by partial match: {target}", "info")
+                    break
+            if target:
+                break
+
+    if target is None:
+        log("User not found.", "err")
+        log(f"Input: '{user_input}' | Bot is in {len(bot.guilds)} server(s)", "info")
+        if bot.guilds:
+            members_count = sum(len(g.members) for g in bot.guilds)
+            log(f"Total visible members: {members_count}", "info")
+        return
+
+    log(f"DM SPAM target: {target}", "warn")
     log("Type messages one by one. 'send' to flush, 'done' to finish, 'qty N' to repeat.", "info")
 
     messages = []
@@ -1163,11 +1199,11 @@ async def dm_spam():
         for _ in range(repeat):
             for msg in messages:
                 try:
-                    await member.send(msg)
+                    await target.send(msg)
                     sent += 1
                     log(f"  DM sent: {msg[:50]}", "ok")
                 except discord.Forbidden:
-                    log(f"  Cannot DM {member.name} (DMs closed)", "err")
+                    log(f"  Cannot DM (DMs closed)", "err")
                     errors += 1
                     break
                 except Exception as e:
